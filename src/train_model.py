@@ -110,7 +110,22 @@ def train_all_models():
         callbacks=[early_stopping, checkpoint],
         verbose=1
     )
-    print("Saved ANN to models/churn_model.keras")
+    
+    # Save in multiple formats for maximum cross-platform / cross-version compatibility
+    try:
+        ann_model.save("models/churn_model.keras")
+    except Exception as e:
+        print(f"Note on keras format save: {e}")
+    try:
+        ann_model.save_weights("models/churn_model.weights.h5")
+        print("Saved ANN weights to models/churn_model.weights.h5")
+    except Exception as e:
+        print(f"Note on weights save: {e}")
+    try:
+        ann_model.save("models/churn_model.h5")
+        print("Saved ANN model to models/churn_model.h5")
+    except Exception as e:
+        print(f"Note on h5 save: {e}")
     
     # 7. Model Evaluation
     print("\nEvaluating all models on test data...")

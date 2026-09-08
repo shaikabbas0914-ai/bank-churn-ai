@@ -36,14 +36,49 @@ def load_preprocessor(preprocessor_path="models/preprocessor.pkl"):
         raise FileNotFoundError(f"Preprocessor not found at {preprocessor_path}. Please run training first.")
     return joblib.load(preprocessor_path)
 
+def build_ann_architecture(input_dim=13):
+    """Reconstructs the exact ANN model architecture in code to avoid Keras serialization issues across environments."""
+    from tensorflow.keras.models import Sequential
+    from tensorflow.keras.layers import Dense, Dropout, Input
+    model = Sequential([
+        Input(shape=(input_dim,)),
+        Dense(64, activation="relu"),
+        Dropout(0.2),
+        Dense(32, activation="relu"),
+        Dropout(0.2),
+        Dense(16, activation="relu"),
+        Dense(1, activation="sigmoid")
+    ])
+    model.compile(optimizer="adam", loss="binary_crossentropy", metrics=["accuracy"])
+    return model
+
 def load_model(model_name="ANN"):
-    """Loads the trained model based on the name."""
+    """Loads the trained model based on the name with fallback handling for cloud environments."""
     models_dir = "models"
     if model_name == "ANN":
-        model_path = os.path.join(models_dir, "churn_model.keras")
-        if not os.path.exists(model_path):
-            raise FileNotFoundError(f"ANN model not found at {model_path}")
-        return tf.keras.models.load_model(model_path)
+        keras_path = os.path.join(models_dir, "churn_model.keras")
+        h5_path = os.path.join(models_dir, "churn_model.h5")
+        weights_path = os.path.join(models_dir, "churn_model.weights.h5")
+        
+        # 1. Try direct loading without compilation graph dependencies
+        for p in [h5_path, keras_path]:
+            if os.path.exists(p):
+                try:
+                    return tf.keras.models.load_model(p, compile=False)
+                except Exception:
+                    pass
+        
+        # 2. Reconstruct architecture in memory and load weights
+        ann = build_ann_architecture(input_dim=13)
+        for wp in [weights_path, h5_path, keras_path]:
+            if os.path.exists(wp):
+                try:
+                    ann.load_weights(wp)
+                    return ann
+                except Exception:
+                    pass
+        
+        raise RuntimeError(f"Could not load ANN model from {models_dir}. Please run training first.")
     elif model_name == "Random Forest":
         model_path = os.path.join(models_dir, "random_forest.pkl")
         if not os.path.exists(model_path):
